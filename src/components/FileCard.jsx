@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { motion } from 'framer-motion';
-import { downloadFile } from '../lib/supabase';
+import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { downloadFile, getPreviewUrl } from '../lib/supabase';
 import { 
   FileArchive, 
   FileText, 
@@ -12,7 +12,8 @@ import {
   Star,
   Eye,
   Clock,
-  HardDrive
+  HardDrive,
+  MoreVertical
 } from 'lucide-react';
 
 const formatBytes = (bytes, decimals = 1) => {
@@ -98,16 +99,40 @@ const getFileStyle = (name) => {
 
 export default function FileCard({ file, onDelete, onToggleStar, onPreview, isGridView }) {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
   const fileStyle = getFileStyle(file.name);
   const IconComponent = fileStyle.icon;
 
+  // Close 3-dots menu on click/tap outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setMenuOpen(false);
+      }
+    };
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [menuOpen]);
+
   const handleDeleteClick = (e) => {
     e.stopPropagation();
-    onDelete(file);
+    setMenuOpen(false);
+    if (window.confirm(`Are you sure you want to delete "${file.name}"?`)) {
+      onDelete(file);
+    }
   };
 
   const handleDownload = async (e) => {
     e.stopPropagation();
+    setMenuOpen(false);
     if (isDownloading) return;
     setIsDownloading(true);
     try {
@@ -120,6 +145,97 @@ export default function FileCard({ file, onDelete, onToggleStar, onPreview, isGr
     }
   };
 
+  // Three Dots Dropdown Component
+  const renderThreeDotsMenu = () => (
+    <div className="relative" ref={menuRef}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          setMenuOpen(!menuOpen);
+        }}
+        aria-label="Actions Menu"
+        title="Three dots menu - Actions"
+        className={`p-2.5 sm:p-2.5 rounded-xl border transition-all duration-200 active:scale-90 flex items-center justify-center shadow-lg ${
+          menuOpen 
+            ? 'bg-brand-600 border-brand-500 text-white ring-2 ring-brand-500/40' 
+            : 'bg-slate-900/90 hover:bg-slate-800 border-slate-700/80 text-brand-400 hover:text-white'
+        }`}
+      >
+        <MoreVertical className="w-5 h-5" />
+      </button>
+
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 5 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 5 }}
+            transition={{ duration: 0.15 }}
+            className="absolute right-0 top-full mt-2 z-50 w-52 glass rounded-xl border border-slate-700 shadow-2xl p-1.5 backdrop-blur-2xl bg-slate-950/98 space-y-1 text-left"
+          >
+            <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800/80 flex items-center justify-between">
+              <span>File Actions</span>
+              <span className="text-brand-400 font-mono text-[9px] bg-brand-500/10 px-1.5 py-0.5 rounded border border-brand-500/20">Menu</span>
+            </div>
+
+            {/* Action 1: Preview File */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+                if (onPreview) onPreview(file);
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/80 text-slate-200 hover:text-white text-xs font-medium transition-colors text-left"
+            >
+              <Eye className="w-4 h-4 text-sky-400 flex-shrink-0" />
+              <span>Preview File</span>
+            </button>
+
+            {/* Action 2: Download File */}
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/80 text-slate-200 hover:text-white text-xs font-medium transition-colors text-left disabled:opacity-50"
+            >
+              <Download className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+              <span>{isDownloading ? "Generating link..." : "Download File"}</span>
+            </button>
+
+            {/* Action 3: Star / Favorite */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen(false);
+                if (onToggleStar) onToggleStar(file);
+              }}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-800/80 text-slate-200 hover:text-white text-xs font-medium transition-colors text-left"
+            >
+              <Star className={`w-4 h-4 flex-shrink-0 ${file.starred ? 'text-amber-400 fill-amber-400' : 'text-amber-400'}`} />
+              <span>{file.starred ? "Remove Favorite" : "Add to Favorites"}</span>
+            </button>
+
+            <div className="border-t border-slate-800/80 my-1"></div>
+
+            {/* Action 4: DELETE FILE BUTTON */}
+            <button
+              type="button"
+              onClick={handleDeleteClick}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-red-500/15 hover:bg-red-500/30 border border-red-500/30 text-red-300 hover:text-white text-xs font-bold transition-all text-left shadow-sm active:scale-95 cursor-pointer mt-1"
+            >
+              <Trash2 className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <span>Delete File</span>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+
+  // GRID VIEW LAYOUT
   if (isGridView) {
     return (
       <motion.div
@@ -128,61 +244,34 @@ export default function FileCard({ file, onDelete, onToggleStar, onPreview, isGr
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.2 }}
-        className="glass glass-hover rounded-xl p-5 border border-slate-800 flex flex-col justify-between h-48 select-none group relative overflow-hidden"
+        className={`glass glass-hover rounded-xl p-4 sm:p-5 border border-slate-800 flex flex-col justify-between h-52 select-none relative ${
+          menuOpen ? 'z-40 border-brand-500/50 ring-1 ring-brand-500/30' : 'z-10'
+        }`}
       >
-        {/* Top bar with Icon, Star status, and Actions */}
+        {/* Top bar: ONLY Icon/Star indicator and the 3-Dots Button */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
-            <div className={`p-3 rounded-lg border ${fileStyle.color} flex items-center justify-center shadow-inner`}>
+            <div className={`p-3 rounded-xl border ${fileStyle.color} flex items-center justify-center shadow-inner`}>
               <IconComponent className="w-6 h-6" />
             </div>
-            
-            {/* Star toggle button */}
-            <button
-              onClick={(e) => { e.stopPropagation(); onToggleStar(file); }}
-              title={file.starred ? "Remove Favorite" : "Add Favorite"}
-              className={`p-2 rounded-lg border transition-all duration-200 active:scale-90 ${
-                file.starred 
-                  ? 'bg-amber-500/10 border-amber-500/35 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.1)]' 
-                  : 'bg-slate-900/40 hover:bg-slate-900 border-slate-800 text-slate-500 hover:text-amber-400'
-              }`}
-            >
-              <Star className="w-4 h-4" fill={file.starred ? "currentColor" : "none"} />
-            </button>
+
+            {file.starred && (
+              <span className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400" title="Starred Favorite">
+                <Star className="w-3.5 h-3.5 fill-amber-400" />
+              </span>
+            )}
           </div>
-          
-          {/* Hover actions group */}
-          <div className="flex items-center gap-1.5 opacity-90 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            <button
-              onClick={(e) => { e.stopPropagation(); onPreview(file); }}
-              title="Preview File"
-              className="p-1.5 rounded-lg bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-all"
-            >
-              <Eye className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleDownload}
-              disabled={isDownloading}
-              title={isDownloading ? "Generating..." : "Download File"}
-              className="p-1.5 rounded-lg bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-all disabled:opacity-50"
-            >
-              <Download className="w-4 h-4" />
-            </button>
-            <button
-              onClick={handleDeleteClick}
-              title="Delete File"
-              className="p-1.5 rounded-lg bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-red-400 transition-all"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
+
+          {/* THREE DOTS MENU BUTTON */}
+          {renderThreeDotsMenu()}
         </div>
 
         {/* Center File Info */}
-        <div className="mt-4 flex-1 min-w-0">
+        <div className="mt-3 flex-1 min-w-0">
           <h3 
-            className="text-sm font-semibold text-slate-100 hover:text-brand-400 transition-colors truncate"
+            className="text-sm font-semibold text-slate-100 hover:text-brand-400 transition-colors truncate cursor-pointer"
             title={file.name}
+            onClick={(e) => { e.stopPropagation(); if (onPreview) onPreview(file); }}
           >
             {file.name}
           </h3>
@@ -192,7 +281,7 @@ export default function FileCard({ file, onDelete, onToggleStar, onPreview, isGr
         </div>
 
         {/* Bottom Metadata bar */}
-        <div className="mt-4 pt-3 border-t border-slate-900/60 flex items-center justify-between text-xs text-slate-400">
+        <div className="mt-3 pt-3 border-t border-slate-900/60 flex items-center justify-between text-xs text-slate-400">
           <div className="flex items-center gap-1 min-w-0">
             <Clock className="w-3.5 h-3.5 flex-shrink-0 text-slate-500" />
             <span className="truncate" title={formatDate(file.created_at)}>
@@ -216,34 +305,30 @@ export default function FileCard({ file, onDelete, onToggleStar, onPreview, isGr
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: 5 }}
       transition={{ duration: 0.15 }}
-      className="glass rounded-xl p-3 border border-slate-800 hover:border-slate-700/80 flex items-center justify-between gap-4 group transition-colors select-none"
+      className={`glass rounded-xl p-3 sm:p-3.5 border border-slate-800 hover:border-slate-700/80 flex items-center justify-between gap-4 transition-all select-none relative ${
+        menuOpen ? 'z-40 border-brand-500/50 ring-1 ring-brand-500/30' : 'z-10'
+      }`}
     >
       <div className="flex items-center gap-3 min-w-0 flex-1">
-        {/* Star Button in list */}
-        <button
-          onClick={(e) => { e.stopPropagation(); onToggleStar(file); }}
-          title={file.starred ? "Remove Favorite" : "Add Favorite"}
-          className={`p-1.5 rounded-lg border transition-all duration-200 active:scale-90 flex-shrink-0 ${
-            file.starred 
-              ? 'bg-amber-500/10 border-amber-500/35 text-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.15)]' 
-              : 'bg-slate-900/40 hover:bg-slate-900 border-slate-800 text-slate-500 hover:text-amber-400'
-          }`}
-        >
-          <Star className="w-4 h-4" fill={file.starred ? "currentColor" : "none"} />
-        </button>
-
         {/* Color-coded Icon Box */}
-        <div className={`p-2 rounded-lg border ${fileStyle.color} flex items-center justify-center flex-shrink-0 shadow-inner`}>
+        <div className={`p-2.5 rounded-xl border ${fileStyle.color} flex items-center justify-center flex-shrink-0 shadow-inner`}>
           <IconComponent className="w-5 h-5" />
         </div>
 
         <div className="min-w-0 flex-1">
-          <h3 
-            className="text-sm font-semibold text-slate-100 truncate pr-4"
-            title={file.name}
-          >
-            {file.name}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 
+              className="text-sm font-semibold text-slate-100 truncate cursor-pointer hover:text-brand-400 transition-colors"
+              title={file.name}
+              onClick={(e) => { e.stopPropagation(); if (onPreview) onPreview(file); }}
+            >
+              {file.name}
+            </h3>
+            {file.starred && (
+              <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 flex-shrink-0" title="Starred Favorite" />
+            )}
+          </div>
+
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400 mt-0.5">
             <span className="text-[10px] tracking-wide font-medium uppercase px-1.5 py-0.1 rounded bg-slate-900 border border-slate-800 text-slate-500">
               {fileStyle.label}
@@ -260,34 +345,12 @@ export default function FileCard({ file, onDelete, onToggleStar, onPreview, isGr
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <button
-          onClick={(e) => { e.stopPropagation(); onPreview(file); }}
-          className="p-2 rounded-lg bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-all flex items-center gap-1.5 text-xs"
-        >
-          <Eye className="w-4 h-4" />
-          <span className="hidden sm:inline">Preview</span>
-        </button>
-        
-        <button
-          onClick={handleDownload}
-          disabled={isDownloading}
-          className="p-2 rounded-lg bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-all flex items-center gap-1.5 text-xs disabled:opacity-50"
-        >
-          <Download className="w-4 h-4" />
-          <span className="hidden sm:inline">{isDownloading ? "..." : "Download"}</span>
-        </button>
-        
-        <button
-          onClick={handleDeleteClick}
-          className="p-2 rounded-lg bg-slate-900/60 hover:bg-slate-900 border border-slate-800 hover:border-slate-700 text-slate-400 hover:text-red-400 transition-all flex items-center gap-1.5 text-xs"
-        >
-          <Trash2 className="w-4 h-4" />
-          <span className="hidden sm:inline">Delete</span>
-        </button>
+      {/* THREE DOTS MENU BUTTON IN LIST VIEW */}
+      <div className="flex items-center flex-shrink-0">
+        {renderThreeDotsMenu()}
       </div>
     </motion.div>
   );
 }
-export { formatBytes, formatDate };
+
+export { formatBytes, formatDate, getPreviewUrl, downloadFile };

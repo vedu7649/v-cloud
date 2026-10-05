@@ -4,7 +4,7 @@ import { signIn } from '../lib/supabase';
 import { Mail, Lock, Shield, Eye, EyeOff, Loader2 } from 'lucide-react';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -14,25 +14,25 @@ export default function Login() {
     e.preventDefault();
     setError('');
 
-    if (!email || !password) {
-      setError('Please fill in all required fields.');
+    if (!identifier || !password) {
+      setError('Please enter your username or email and password.');
       return;
     }
 
     setLoading(true);
 
     try {
-      await signIn(email, password);
+      await signIn(identifier, password);
     } catch (err) {
       console.error(err);
       const msg = err.message || '';
       
       if (msg.includes('Invalid login credentials')) {
-        setError('Invalid email or password.');
+        setError('Invalid username/email or password.');
       } else if (msg.includes('Email not confirmed')) {
-        setError('Please confirm your email address. Check your inbox for a verification link.');
+        setError('Please confirm your email address.');
       } else if (msg.includes('Network') || msg.includes('fetch')) {
-        setError('Network block detected. Check your proxy configurations or firewall blocks.');
+        setError('Network error. Please check your connection.');
       } else {
         setError(msg || 'An error occurred during authentication.');
       }
@@ -42,15 +42,15 @@ export default function Login() {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden">
+    <div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-slate-950 text-slate-100 select-none">
       {/* Background Ambient Glows */}
-      <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-brand-600/10 rounded-full blur-3xl" />
-      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-violet-600/10 rounded-full blur-3xl" />
+      <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-brand-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-violet-600/10 rounded-full blur-3xl pointer-events-none" />
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
+        transition={{ duration: 0.4 }}
         className="relative w-full max-w-md glass rounded-2xl p-8 shadow-2xl border border-slate-800"
       >
         {/* Brand Header */}
@@ -66,14 +66,6 @@ export default function Login() {
           <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
             V-Cloud
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Personal Cloud Storage (Supabase Vault)
-          </p>
-        </div>
-
-        {/* Private Access Indicator */}
-        <div className="bg-slate-900/50 border border-slate-800/80 text-slate-400 px-4 py-2.5 rounded-lg text-[11px] mb-6 text-center leading-relaxed">
-          🔒 Private storage. Access is limited to pre-configured console users.
         </div>
 
         {/* Notifications */}
@@ -83,7 +75,7 @@ export default function Login() {
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="bg-red-500/10 border border-red-500/20 text-red-200 px-4 py-2.5 rounded-lg text-xs mb-4 flex items-start gap-2"
+              className="bg-red-500/10 border border-red-500/20 text-red-200 px-4 py-2.5 rounded-xl text-xs mb-4 flex items-start gap-2"
             >
               <span>⚠️</span>
               <p className="flex-1">{error}</p>
@@ -95,18 +87,18 @@ export default function Login() {
         <form onSubmit={handleAuth} className="space-y-4">
           <div>
             <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
-              Email Address
+              Username or Email
             </label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
                 <Mail className="h-4.5 w-4.5" />
               </span>
               <input
-                type="email"
+                type="text"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@college.edu"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+                placeholder="VEDANT or email"
                 className="w-full bg-slate-900/50 hover:bg-slate-900/80 focus:bg-slate-900 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl py-2.5 pl-10 pr-4 text-sm text-slate-100 placeholder-slate-500 outline-none transition-all"
                 disabled={loading}
               />
@@ -143,12 +135,12 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-medium text-sm py-2.5 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-brand-500/15 disabled:opacity-60 disabled:pointer-events-none mt-2 active:scale-[0.98]"
+            className="w-full bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-medium text-sm py-2.5 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-brand-500/15 disabled:opacity-60 disabled:pointer-events-none mt-4 active:scale-[0.98]"
           >
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Verifying credentials...</span>
+                <span>Signing in...</span>
               </>
             ) : (
               <span>Sign In</span>

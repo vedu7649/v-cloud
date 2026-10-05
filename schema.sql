@@ -4,7 +4,6 @@ values ('vault', 'vault', false)
 on conflict (id) do nothing;
 
 -- 2. Storage RLS: Restrict access strictly to the owner's user folder
--- Delete any existing matching policies first to avoid name conflicts
 drop policy if exists "Allow user full access to own storage folder" on storage.objects;
 
 create policy "Allow user full access to own storage folder"
@@ -41,3 +40,25 @@ with check (auth.uid() = user_id);
 
 -- 5. Migration: Add starred column if migrating from an existing table structure
 alter table public.files add column if not exists starred boolean default false not null;
+
+-- 6. RPC Function: Multi-User Storage Breakdown for Admin Cockpit
+create or replace function get_storage_breakdown()
+returns table (
+  user_id uuid,
+  user_email text,
+  total_bytes bigint,
+  file_count bigint
+)
+language sql
+security definer
+as $$
+  select 
+    f.user_id,
+    coalesce(u.email, 'Admin User (' || substring(f.user_id::text from 1 for 8) || ')') as user_email,
+    coalesce(sum(f.size), 0)::bigint as total_bytes,
+    count(f.id)::bigint as file_count
+  from public.files f
+  left join auth.users u on f.user_id = u.id
+  group by f.user_id, u.email
+  order by total_bytes desc;
+$$;
